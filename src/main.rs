@@ -13,6 +13,7 @@ use rp_pico as bsp;
 
 use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
+    gpio::dynpin::DynPin,
     pac,
     sio::Sio,
     watchdog::Watchdog,
@@ -21,6 +22,7 @@ use bsp::hal::{
 use st7735_lcd;
 use st7735_lcd::Orientation;
 use chip8::Chip8;
+use chip8::keypad::KeyPad;
 use chip8::roms::testroms::IBM_LOGO;
 
 #[entry]
@@ -78,11 +80,29 @@ fn main() -> ! {
 
     lcd_led.set_high().unwrap();
 
-    let mut chip8 = Chip8::new(disp);
+    let keypad = KeyPad::<DynPin, DynPin>::new(
+        [
+            pins.gpio26.into_push_pull_output().into(),
+            pins.gpio22.into_push_pull_output().into(),
+            pins.gpio21.into_push_pull_output().into(),
+            pins.gpio20.into_push_pull_output().into(),
+        ], 
+        [
+            pins.gpio19.into_pull_down_input().into(),
+            pins.gpio18.into_pull_down_input().into(),
+            pins.gpio17.into_pull_down_input().into(),
+            pins.gpio16.into_pull_down_input().into(),
+        ]
+    );
+
+    let mut chip8 = Chip8::new(disp, keypad);
     chip8.load_program(IBM_LOGO);
 
     loop {
-        chip8.tick();
+        info!("Opcode: {:x}", chip8.tick());
         delay.delay_ms(20);
+        info!("Registers: {}", chip8.get_registers());
+        info!("PC: {}", chip8.get_program_counter());
+        info!("Index: {}", chip8.get_index());
     }
 }
