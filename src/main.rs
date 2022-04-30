@@ -14,12 +14,12 @@ use rp_pico as bsp;
 use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
     gpio::dynpin::DynPin,
+    rosc::RingOscillator,
     pac,
     sio::Sio,
     watchdog::Watchdog,
 };
 
-use st7735_lcd;
 use st7735_lcd::Orientation;
 use chip8::Chip8;
 use chip8::keypad::KeyPad;
@@ -95,12 +95,15 @@ fn main() -> ! {
         ]
     );
 
-    let mut chip8 = Chip8::new(disp, keypad);
+    let mut rosc = RingOscillator::new(pac.ROSC);
+    let mut rng = rosc.initialize();
+
+    let mut chip8 = Chip8::new(disp, keypad, rng);
     chip8.load_program(IBM_LOGO);
 
     loop {
         info!("Opcode: {:x}", chip8.tick());
-        delay.delay_ms(20);
+        delay.delay_ms(40);
         info!("Registers: {}", chip8.get_registers());
         info!("PC: {}", chip8.get_program_counter());
         info!("Index: {}", chip8.get_index());
