@@ -23,7 +23,8 @@ use bsp::hal::{
 use st7735_lcd::Orientation;
 use chip8::Chip8;
 use chip8::keypad::KeyPad;
-use chip8::roms::testroms::IBM_LOGO;
+use chip8::roms::testroms;
+use chip8::fonts::fonts;
 
 #[entry]
 fn main() -> ! {
@@ -95,17 +96,19 @@ fn main() -> ! {
         ]
     );
 
-    let mut rosc = RingOscillator::new(pac.ROSC);
-    let mut rng = rosc.initialize();
-
-    let mut chip8 = Chip8::new(disp, keypad, rng);
-    chip8.load_program(IBM_LOGO);
+    let rosc = RingOscillator::new(pac.ROSC);
+    let rng = rosc.initialize();
+    let mut chip8 = Chip8::new(disp, keypad, rng, false);
+    chip8.load_program(testroms::IBM_LOGO);
+    chip8.load_font(fonts::DEFAULT);
 
     loop {
-        info!("Opcode: {:x}", chip8.tick());
+        chip8.tick();
+        info!("Opcode: {:x}", chip8.get_current_op());
+        //info!("{}", chip8.get_pixels());
         delay.delay_ms(40);
         info!("Registers: {}", chip8.get_registers());
-        info!("PC: {}", chip8.get_program_counter());
-        info!("Index: {}", chip8.get_index());
+        //info!("PC: {}", chip8.get_program_counter());
+        //info!("Index: {}", chip8.get_index());
     }
 }
