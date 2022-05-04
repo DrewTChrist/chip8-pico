@@ -79,8 +79,6 @@ fn main() -> ! {
     disp.init(&mut delay).unwrap();
     disp.set_orientation(&Orientation::Landscape).unwrap();
 
-    lcd_led.set_high().unwrap();
-
     let keypad = KeyPad::<DynPin, DynPin>::new(
         [
             pins.gpio26.into_push_pull_output().into(),
@@ -99,15 +97,20 @@ fn main() -> ! {
     let rosc = RingOscillator::new(pac.ROSC);
     let rng = rosc.initialize();
     let mut chip8 = Chip8::new(disp, keypad, rng, false);
-    chip8.load_program(testroms::IBM_LOGO);
+    //chip8.load_program(testroms::IBM_LOGO);
+    chip8.load_program(testroms::OP_TEST);
+    //chip8.load_program(testroms::BC_TEST);
     chip8.load_font(fonts::DEFAULT);
+    delay.delay_ms(10);
+
+    lcd_led.set_high().unwrap();
 
     loop {
         chip8.tick();
-        info!("Opcode: {:x}", chip8.get_current_op());
+        //info!("Opcode: {:x}", chip8.get_current_op());
         //info!("{}", chip8.get_pixels());
-        delay.delay_ms(40);
-        info!("Registers: {}", chip8.get_registers());
+        //delay.delay_ms(200);
+        //info!("Registers: {}", chip8.get_registers());
         //info!("PC: {}", chip8.get_program_counter());
         //info!("Index: {}", chip8.get_index());
     }
