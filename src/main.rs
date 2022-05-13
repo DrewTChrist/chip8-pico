@@ -26,8 +26,6 @@ use bsp::hal::{
 use st7735_lcd::Orientation;
 use chip8::Chip8;
 use chip8::keypad::KeyPad;
-use chip8::roms::testroms;
-use chip8::roms::games;
 use chip8::fonts::fonts;
 
 #[entry]
@@ -86,7 +84,7 @@ fn main() -> ! {
     disp.init(&mut delay).unwrap();
     disp.set_orientation(&Orientation::Landscape).unwrap();
 
-    let mut keypad = KeyPad::<DynPin, DynPin>::new(
+    let keypad = KeyPad::<DynPin, DynPin>::new(
         [
             pins.gpio19.into_push_pull_output().into(),
             pins.gpio18.into_push_pull_output().into(),
@@ -104,7 +102,7 @@ fn main() -> ! {
     let rosc = RingOscillator::new(pac.ROSC);
     let rng = rosc.initialize();
     let mut chip8 = Chip8::new(disp, keypad, rng, delay, false);
-    chip8.load_program(testroms::OP_TEST);
+    chip8.load_program(include_bytes!("roms/test_opcode.ch8"));
     chip8.load_font(fonts::DEFAULT);
     chip8.set_scale((2, 4));
     chip8.set_padding(16);
@@ -115,9 +113,5 @@ fn main() -> ! {
         chip8.tick();
         countdown.start(5_u32.milliseconds());
         let _ = nb::block!(countdown.wait());
-        //info!("{}", chip8.get_current_op());
-        //info!("{}", chip8.get_registers());
-        //info!("{}", chip8.get_program_counter());
-        //info!("{}", chip8.get_last_key());
     }
 }
