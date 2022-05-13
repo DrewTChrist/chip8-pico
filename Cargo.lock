@@ -94,6 +94,7 @@ dependencies = [
  "defmt-rtt",
  "embedded-hal",
  "embedded-time",
+ "nb 1.0.0",
  "panic-probe",
  "rp-pico",
  "st7735-lcd",

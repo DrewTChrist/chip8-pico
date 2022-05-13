@@ -5,8 +5,10 @@ use cortex_m_rt::entry;
 use defmt::*;
 use defmt_rtt as _;
 use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::timer::CountDown;
 use embedded_time::fixed_point::FixedPoint;
-use embedded_time::rate::Extensions;
+use embedded_time::rate::Extensions as RateExtensions;
+use embedded_time::duration::Extensions;
 use panic_probe as _;
 
 use rp_pico as bsp;
@@ -17,6 +19,7 @@ use bsp::hal::{
     rosc::RingOscillator,
     pac,
     sio::Sio,
+    timer::Timer,
     watchdog::Watchdog,
 };
 
@@ -24,6 +27,7 @@ use st7735_lcd::Orientation;
 use chip8::Chip8;
 use chip8::keypad::KeyPad;
 use chip8::roms::testroms;
+use chip8::roms::games;
 use chip8::fonts::fonts;
 
 #[entry]
@@ -46,6 +50,9 @@ fn main() -> ! {
     )
     .ok()
     .unwrap();
+
+    let timer = Timer::new(pac.TIMER, &mut pac.RESETS);
+    let mut countdown = timer.count_down();
 
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().integer());
 
@@ -79,39 +86,38 @@ fn main() -> ! {
     disp.init(&mut delay).unwrap();
     disp.set_orientation(&Orientation::Landscape).unwrap();
 
-    let keypad = KeyPad::<DynPin, DynPin>::new(
+    let mut keypad = KeyPad::<DynPin, DynPin>::new(
         [
-            pins.gpio26.into_push_pull_output().into(),
-            pins.gpio22.into_push_pull_output().into(),
-            pins.gpio21.into_push_pull_output().into(),
-            pins.gpio20.into_push_pull_output().into(),
+            pins.gpio19.into_push_pull_output().into(),
+            pins.gpio18.into_push_pull_output().into(),
+            pins.gpio17.into_push_pull_output().into(),
+            pins.gpio16.into_push_pull_output().into(),
         ], 
         [
-            pins.gpio19.into_pull_down_input().into(),
-            pins.gpio18.into_pull_down_input().into(),
-            pins.gpio17.into_pull_down_input().into(),
-            pins.gpio16.into_pull_down_input().into(),
+            pins.gpio26.into_pull_up_input().into(),
+            pins.gpio22.into_pull_up_input().into(),
+            pins.gpio21.into_pull_up_input().into(),
+            pins.gpio20.into_pull_up_input().into(),
         ]
     );
 
     let rosc = RingOscillator::new(pac.ROSC);
     let rng = rosc.initialize();
-    let mut chip8 = Chip8::new(disp, keypad, rng, false);
-    //chip8.load_program(testroms::IBM_LOGO);
+    let mut chip8 = Chip8::new(disp, keypad, rng, delay, false);
     chip8.load_program(testroms::OP_TEST);
-    //chip8.load_program(testroms::BC_TEST);
     chip8.load_font(fonts::DEFAULT);
-    delay.delay_ms(10);
+    chip8.set_scale((2, 4));
+    chip8.set_padding(16);
 
     lcd_led.set_high().unwrap();
 
     loop {
         chip8.tick();
-        //info!("Opcode: {:x}", chip8.get_current_op());
-        //info!("{}", chip8.get_pixels());
-        //delay.delay_ms(200);
-        //info!("Registers: {}", chip8.get_registers());
-        //info!("PC: {}", chip8.get_program_counter());
-        //info!("Index: {}", chip8.get_index());
+        countdown.start(5_u32.milliseconds());
+        let _ = nb::block!(countdown.wait());
+        //info!("{}", chip8.get_current_op());
+        //info!("{}", chip8.get_registers());
+        //info!("{}", chip8.get_program_counter());
+        //info!("{}", chip8.get_last_key());
     }
 }
