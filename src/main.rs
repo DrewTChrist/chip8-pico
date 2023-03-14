@@ -5,10 +5,10 @@ use cortex_m_rt::entry;
 use defmt::*;
 use defmt_rtt as _;
 use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::timer::CountDown;
+use embedded_hal::timer::{Cancel, CountDown};
+use embedded_time::duration::Extensions;
 use embedded_time::fixed_point::FixedPoint;
 use embedded_time::rate::Extensions as RateExtensions;
-use embedded_time::duration::Extensions;
 use panic_probe as _;
 
 use rp_pico as bsp;
@@ -16,17 +16,28 @@ use rp_pico as bsp;
 use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
     gpio::dynpin::DynPin,
-    rosc::RingOscillator,
     pac,
+    rosc::RingOscillator,
     sio::Sio,
     timer::Timer,
     watchdog::Watchdog,
 };
 
-use st7735_lcd::Orientation;
-use chip8::Chip8;
+use chip8::fonts;
 use chip8::keypad::KeyPad;
-use chip8::fonts::fonts;
+use chip8::Chip8;
+use st7735_lcd::Orientation;
+
+enum Rom<'a> {
+    Bytes(&'a [u8]),
+}
+
+impl<'a> Rom<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        let Rom::Bytes(b) = self;
+        b
+    }
+}
 
 #[entry]
 fn main() -> ! {
@@ -79,10 +90,10 @@ fn main() -> ! {
         &embedded_hal::spi::MODE_0,
     );
 
-    let mut disp = st7735_lcd::ST7735::new(spi, dc, rst, true, false, 160, 128);
+    let mut display = st7735_lcd::ST7735::new(spi, dc, rst, true, false, 160, 128);
 
-    disp.init(&mut delay).unwrap();
-    disp.set_orientation(&Orientation::Landscape).unwrap();
+    display.init(&mut delay).unwrap();
+    display.set_orientation(&Orientation::Landscape).unwrap();
 
     let keypad = KeyPad::<DynPin, DynPin>::new(
         [
@@ -90,19 +101,25 @@ fn main() -> ! {
             pins.gpio18.into_push_pull_output().into(),
             pins.gpio17.into_push_pull_output().into(),
             pins.gpio16.into_push_pull_output().into(),
-        ], 
+        ],
         [
             pins.gpio26.into_pull_up_input().into(),
             pins.gpio22.into_pull_up_input().into(),
             pins.gpio21.into_pull_up_input().into(),
             pins.gpio20.into_pull_up_input().into(),
-        ]
+        ],
     );
 
     let rosc = RingOscillator::new(pac.ROSC);
     let rng = rosc.initialize();
-    let mut chip8 = Chip8::new(disp, keypad, rng, delay, false);
-    chip8.load_program(include_bytes!("roms/test_opcode.ch8"));
+    let mut chip8 = Chip8::new(display, keypad, rng, delay);
+    let roms: [Rom; 3] = [
+        Rom::Bytes(include_bytes!("roms/test_opcode.ch8")),
+        Rom::Bytes(include_bytes!("roms/ibm_logo.ch8")),
+        Rom::Bytes(include_bytes!("roms/breakout.ch8")),
+    ];
+    let program_index: usize = 0;
+    chip8.load_program(roms[program_index].bytes());
     chip8.load_font(fonts::DEFAULT);
     chip8.set_scale((2, 4));
     chip8.set_padding(16);
@@ -112,6 +129,7 @@ fn main() -> ! {
     loop {
         chip8.tick();
         countdown.start(5_u32.milliseconds());
+        countdown.cancel().unwrap();
         let _ = nb::block!(countdown.wait());
     }
 }
