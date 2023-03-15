@@ -2,9 +2,8 @@
 #![no_main]
 
 use cortex_m_rt::entry;
-use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::{InputPin, OutputPin};
 use embedded_hal::timer::{Cancel, CountDown};
 use embedded_time::duration::Extensions;
 use embedded_time::fixed_point::FixedPoint;
@@ -110,15 +109,20 @@ fn main() -> ! {
         ],
     );
 
+    let rom_change_button = pins.gpio11.into_pull_up_input();
+
     let rosc = RingOscillator::new(pac.ROSC);
     let rng = rosc.initialize();
     let mut chip8 = Chip8::new(display, keypad, rng, delay);
-    let roms: [Rom; 3] = [
+    let roms: [Rom; 6] = [
         Rom::Bytes(include_bytes!("roms/test_opcode.ch8")),
         Rom::Bytes(include_bytes!("roms/ibm_logo.ch8")),
         Rom::Bytes(include_bytes!("roms/breakout.ch8")),
+        Rom::Bytes(include_bytes!("roms/maze.ch8")),
+        Rom::Bytes(include_bytes!("roms/trip8.ch8")),
+        Rom::Bytes(include_bytes!("roms/keypad_test.ch8")),
     ];
-    let program_index: usize = 0;
+    let mut program_index: usize = 0;
     chip8.load_program(roms[program_index].bytes());
     chip8.load_font(fonts::DEFAULT);
     chip8.set_scale((2, 4));
@@ -127,9 +131,22 @@ fn main() -> ! {
     lcd_led.set_high().unwrap();
 
     loop {
+        if let Ok(low) = rom_change_button.is_low() {
+            if low {
+                defmt::info!("pin is low");
+                program_index = if program_index + 1 < roms.len() {
+                    program_index + 1
+                } else {
+                    0
+                };
+                chip8.reset();
+                chip8.load_program(roms[program_index].bytes());
+                while rom_change_button.is_low().unwrap() {}
+            }
+        }
         chip8.tick();
         countdown.start(5_u32.milliseconds());
-        countdown.cancel().unwrap();
         let _ = nb::block!(countdown.wait());
+        countdown.cancel().unwrap();
     }
 }
